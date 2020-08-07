@@ -1,0 +1,32 @@
+# Domains that are allowed to make cross-domain calls to example.com
+class allowed_origins {
+    ".example.com"
+    ".example.info"
+    ".example.net"
+}
+ 
+when HTTP_REQUEST {
+    unset -nocomplain cors_origin
+    if { [class match [HTTP::header Origin] ends_with allowed_origins] } {
+        if { ( [HTTP::method] equals "OPTIONS" ) and ( [HTTP::header exists "Access-Control-Request-Method"] ) } {
+            # CORS preflight request - return response immediately
+            HTTP::respond 200 "Access-Control-Allow-Origin" [HTTP::header "Origin"] \
+                              "Access-Control-Allow-Methods" [HTTP::header "Access-Control-Request-Method"] \
+                              "Access-Control-Allow-Headers" [HTTP::header "Access-Control-Request-Headers"] \
+                              "Access-Control-Max-Age" "86400" \
+                              "Vary" "Origin"
+        } else {
+            # CORS GET/POST requests - set cors_origin variable
+            set cors_origin [HTTP::header "Origin"]
+        }
+    }
+}
+ 
+when HTTP_RESPONSE {
+    # CORS GET/POST response - check cors_origin variable set in request
+    if { [info exists cors_origin] } {
+        HTTP::header insert "Access-Control-Allow-Origin" $cors_origin
+        HTTP::header insert "Access-Control-Allow-Credentials" "true"
+        HTTP::header insert "Vary" "Origin"
+    }
+}
